@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>au.com.dius.pact.consumer</groupId>
+  <artifactId>junit5</artifactId>
+  <version>4.3.5</version>
+  <name>junit5</name>
+  <description>pact-jvm-consumer-junit5
+========================
+
+JUnit 5 support for Pact consumer tests
+
+## Dependency
+
+The library is available on maven central using:
+
+* group-id = `au.com.dius.pact.consumer`
+* artifact-id = `junit5`
+* version-id = `4.2.X`
+
+## Usage
+
+### 1. Add the Pact consumer test extension to the test class.
+
+To write Pact consumer tests with JUnit 5, you need to add `@ExtendWith(PactConsumerTestExt)` to your test class. This
+replaces the `PactRunner` used for JUnit 4 tests. The rest of the test follows a similar pattern as for JUnit 4 tests.
+
+```java
+@ExtendWith(PactConsumerTestExt.class)
+class ExampleJavaConsumerPactTest {
+```
+
+### 2. create a method annotated with `@Pact` that returns the interactions for the test
+
+For each test (as with JUnit 4), you need to define a method annotated with the `@Pact` annotation that returns the
+interactions for the test.
+
+```java
+    @Pact(provider=&amp;quot;ArticlesProvider&amp;quot;, consumer=&amp;quot;test_consumer&amp;quot;)
+    public RequestResponsePact createPact(PactDslWithProvider builder) {
+        return builder
+            .given(&amp;quot;test state&amp;quot;)
+            .uponReceiving(&amp;quot;ExampleJavaConsumerPactTest test interaction&amp;quot;)
+                .path(&amp;quot;/articles.json&amp;quot;)
+                .method(&amp;quot;GET&amp;quot;)
+            .willRespondWith()
+                .status(200)
+                .body(&amp;quot;{\&amp;quot;responsetest\&amp;quot;: true}&amp;quot;)
+            .toPact();
+    }
+```
+
+### 3. Link the mock server with the interactions for the test with `@PactTestFor`
+
+Then the final step is to use the `@PactTestFor` annotation to tell the Pact extension how to setup the Pact test. You
+can either put this annotation on the test class, or on the test method. For examples see
+[ArticlesTest](https://github.com/DiUS/pact-jvm/blob/master/consumer/junit5/src/test/java/au/com/dius/pact/consumer/junit5/ArticlesTest.java) and
+[MultiTest](https://github.com/DiUS/pact-jvm/blob/master/consumer/junit5/src/test/groovy/au/com/dius/pact/consumer/junit5/MultiTest.groovy).
+
+The `@PactTestFor` annotation allows you to control the mock server in the same way as the JUnit 4 `PactProviderRule`. It
+allows you to set the hostname to bind to (default is `localhost`) and the port (default is to use a random port). You
+can also set the Pact specification version to use (default is V3).
+
+```java
+@ExtendWith(PactConsumerTestExt.class)
+@PactTestFor(providerName = &amp;quot;ArticlesProvider&amp;quot;)
+public class ExampleJavaConsumerPactTest {
+```
+
+**NOTE on the hostname**: The mock server runs in the same JVM as the test, so the only valid values for hostname are:
+
+| hostname | result |
+| -------- | ------ |
+| `localhost` | binds to the address that localhost points to (normally the loopback adapter) |
+| `127.0.0.1` or `::1` | binds to the loopback adapter |
+| host name | binds to the default interface that the host machines DNS name resolves to |
+| `0.0.0.0` or `::` | binds to the all interfaces on the host machine |
+
+#### Matching the interactions by provider name
+
+If you set the `providerName` on the `@PactTestFor` annotation, then the first method with a `@Pact` annotation with the
+same provider name will be used. See [ArticlesTest](https://github.com/DiUS/pact-jvm/blob/master/consumer/junit5/src/test/java/au/com/dius/pact/consumer/junit5/ArticlesTest.java) for
+an example.
+
+#### Matching the interactions by method name
+
+If you set the `pactMethod` on the `@PactTestFor` annotation, then the method with the provided name will be used (it still
+needs a `@Pact` annotation). See [MultiTest](https://github.com/DiUS/pact-jvm/blob/master/consumer/junit5/src/test/groovy/au/com/dius/pact/consumer/junit5/MultiTest.groovy) for an example.
+
+### Injecting the mock server into the test
+
+You can get the mock server injected into the test method by adding a `MockServer` parameter to the test method.
+
+```java
+  @Test
+  void test(MockServer mockServer) throws IOException {
+    HttpResponse httpResponse = Request.Get(mockServer.getUrl() + &amp;quot;/articles.json&amp;quot;).execute().returnResponse();
+    assertThat(httpResponse.getStatusLine().getStatusCode(), is(equalTo(200)));
+  }
+```
+
+This helps with getting the base URL of the mock server, especially when a random port is used.
+
+## Changing the directory pact files are written to
+
+By default, pact files are written to `target/pacts` (or `build/pacts` if you use Gradle), but this can be overwritten with the `pact.rootDir` system property.
+This property needs to be set on the test JVM as most build tools will fork a new JVM to run the tests.
+
+For Gradle, add this to your build.gradle:
+
+```groovy
+test {
+    systemProperties[&amp;apos;pact.rootDir&amp;apos;] = &amp;quot;$buildDir/custom-pacts-directory&amp;quot;
+}
+```
+
+For maven, use the systemPropertyVariables configuration:
+
+```xml
+&amp;lt;project&amp;gt;
+  [...]
+  &amp;lt;build&amp;gt;
+    &amp;lt;plugins&amp;gt;
+      &amp;lt;plugin&amp;gt;
+        &amp;lt;groupId&amp;gt;org.apache.maven.plugins&amp;lt;/groupId&amp;gt;
+        &amp;lt;artifactId&amp;gt;maven-surefire-plugin&amp;lt;/artifactId&amp;gt;
+        &amp;lt;version&amp;gt;2.18&amp;lt;/version&amp;gt;
+        &amp;lt;configuration&amp;gt;
+          &amp;lt;systemPropertyVariables&amp;gt;
+            &amp;lt;pact.rootDir&amp;gt;some/other/directory&amp;lt;/pact.rootDir&amp;gt;
+            &amp;lt;buildDirectory&amp;gt;${project.build.directory}&amp;lt;/buildDirectory&amp;gt;
+            [...]
+          &amp;lt;/systemPropertyVariables&amp;gt;
+        &amp;lt;/configuration&amp;gt;
+      &amp;lt;/plugin&amp;gt;
+    &amp;lt;/plugins&amp;gt;
+  &amp;lt;/build&amp;gt;
+  [...]
+&amp;lt;/project&amp;gt;
+```
+
+For SBT:
+
+```scala
+fork in Test := true,
+javaOptions in Test := Seq(&amp;quot;-Dpact.rootDir=some/other/directory&amp;quot;)
+```
+
+### Using `@PactDirectory` annotation
+
+You can override the directory the pacts are written in a test by adding the `@PactDirectory` annotation to the test
+class.
+
+## Forcing pact files to be overwritten
+
+By default, when the pact file is written, it will be merged with any existing pact file. To force the file to be 
+overwritten, set the Java system property `pact.writer.overwrite` to `true`.
+
+# Having values injected from provider state callbacks
+
+You can have values from the provider state callbacks be injected into most places (paths, query parameters, headers,
+bodies, etc.). This works by using the V3 spec generators with provider state callbacks that return values. One example
+of where this would be useful is API calls that require an ID which would be auto-generated by the database on the
+provider side, so there is no way to know what the ID would be beforehand.
+
+The following DSL methods all you to set an expression that will be parsed with the values returned from the provider states:
+
+For JSON bodies, use `valueFromProviderState`.&amp;lt;br/&amp;gt;
+For headers, use `headerFromProviderState`.&amp;lt;br/&amp;gt;
+For query parameters, use `queryParameterFromProviderState`.&amp;lt;br/&amp;gt;
+For paths, use `pathFromProviderState`.
+
+For example, assume that an API call is made to get the details of a user by ID. A provider state can be defined that
+specifies that the user must be exist, but the ID will be created when the user is created. So we can then define an
+expression for the path where the ID will be replaced with the value returned from the provider state callback.
+
+```java
+    .pathFromProviderState(&amp;quot;/api/users/${id}&amp;quot;, &amp;quot;/api/users/100&amp;quot;)
+``` 
+You can also just use the key instead of an expression:
+
+```java
+    .valueFromProviderState(&amp;apos;userId&amp;apos;, &amp;apos;userId&amp;apos;, 100) // will look value using userId as the key
+```
+
+## Overriding the expression markers `${` and `}` (4.1.25+)
+
+You can change the markers of the expressions using the following system properties:
+- `pact.expressions.start` (default is `${`)
+- `pact.expressions.end` (default is `}`)
+
+## Using HTTPS
+
+You can enable a HTTPS mock server by setting `https=true` on the `@PactTestFor` annotation. Note that this mock
+server will use a self-signed certificate, so any client code will need to accept self-signed certificates.
+
+## Using own KeyStore
+
+You can provide your own KeyStore file to be loaded on the MockServer. In order to do so you should fulfill the 
+properties `keyStorePath`, `keyStoreAlias`, `keyStorePassword`, `privateKeyPassword` on the `@PactTestFor` annotation.
+Please bear in mind you should also enable HTTPS flag.
+
+## Using multiple providers in a test (4.2.5+)
+
+It is advisable to focus on a single interaction with each test, but you can enable multiple providers in a single test.
+In this case, a separate mock server will be started for each configured provider.
+
+To enable this:
+
+1. Create a method to create the Pact for each provider annotated with the `@Pact(provider = &amp;quot;....&amp;quot;)` annotation. The
+    provider name must be set on the annotation. You can create as many of these as required, but each must have a unique 
+    provider name.
+2. In the test method, use the `pactMethods` attribute on the `@PactTestFor` annotation with the names of all the 
+    methods defined in step 1.
+3. Add a MockServer parameter to the test method for each provider configured in step 1 with a `@ForProvider` 
+    annotation with the name of the provider.
+4. In your test method, interact with each of the mock servers passed in step 3. Note that if any mock server does not
+    get the requests it expects, it will fail the test.
+   
+For an example, see [MultiProviderTest](https://github.com/DiUS/pact-jvm/blob/master/consumer/junit5/src/test/groovy/au/com/dius/pact/consumer/junit5/MultiProviderTest.groovy).
+
+## Dealing with persistent HTTP/1.1 connections (Keep Alive)
+
+As each test will get a new mock server, connections can not be persisted between tests. HTTP clients can cache
+connections with HTTP/1.1, and this can cause subsequent tests to fail. See [#342](https://github.com/pact-foundation/pact-jvm/issues/342)
+and [#1383](https://github.com/pact-foundation/pact-jvm/issues/1383).
+
+One option (if the HTTP client supports it, Apache HTTP Client does) is to set the system property `http.keepAlive` to `false` in
+the test JVM. The other option is to set `pact.mockserver.addCloseHeader` to `true` to force the mock server to
+send a `Connection: close` header with every response (supported with Pact-JVM 4.2.7+).
+
+# Testing messages
+
+You can use Pact to test interactions with messaging systems. There are two main types of message support: asynchronous 
+messages and synchronous request/response messages.
+
+## Asynchronous messages
+
+Asynchronous messages are you normal type of single shot or fire and forget type messages. They are typically sent to a
+message queue or topic as a notification or event. With Pact tests, we will be testing that our consumer of the messages
+works with the messages setup as the expectations in test. This should be the message handler code that processes the
+actual messages that come off the message queue in production.
+
+You can use either the V3 Message Pact or the V4 Asynchronous Message interaction to test these types of interactions.
+
+For a V3 message pact example, see [AsyncMessageTest](https://github.com/pact-foundation/pact-jvm/blob/ac6a0eae0b18183f6f453eafddb89b90741ace42/consumer/junit5/src/test/java/au/com/dius/pact/consumer/junit5/AsyncMessageTest.java).
+
+For a V4 asynchronous message example, see [V4AsyncMessageTest](https://github.com/pact-foundation/pact-jvm/blob/master/consumer/junit5/src/test/groovy/au/com/dius/pact/consumer/junit5/V4AsyncMessageTest.groovy).
+
+### Matching message metadata
+
+You can also use matching rules for the metadata associated with the message. There is a `MetadataBuilder` class to
+help with this. You can access it via the `withMetadata` method that takes a Java Consumer on the `MessagePactBuilder` class.
+
+For example:
+
+```java
+builder.given(&amp;quot;SomeProviderState&amp;quot;)
+    .expectsToReceive(&amp;quot;a test message with metadata&amp;quot;)
+    .withMetadata(md -&amp;gt; {
+        md.add(&amp;quot;metadata1&amp;quot;, &amp;quot;metadataValue1&amp;quot;);
+        md.add(&amp;quot;metadata2&amp;quot;, &amp;quot;metadataValue2&amp;quot;);
+        md.add(&amp;quot;metadata3&amp;quot;, 10L);
+        md.matchRegex(&amp;quot;partitionKey&amp;quot;, &amp;quot;[A-Z]{3}\\d{2}&amp;quot;, &amp;quot;ABC01&amp;quot;);
+    })
+    .withContent(body)
+    .toPact();
+```
+
+### V4 Synchronous request/response messages
+
+Synchronous request/response messages are a form of message interchange were a request message is sent to another service and
+one or more response messages are returned. Examples of this would be things like Websockets and gRPC.
+
+For a V4 synchronous request/response message example, see [V4AsyncMessageTest](https://github.com/pact-foundation/pact-jvm/blob/master/consumer/junit5/src/test/groovy/au/com/dius/pact/consumer/junit5/V4SyncMessageTest.groovy).
+
+# Using Pact plugins (version 4.3.0+)
+
+The `PactBuilder` consumer test builder supports using Pact plugins. Plugins are defined in the [Pact plugins project](https://github.com/pact-foundation/pact-plugins).
+To use plugins requires the use of Pact specification V4 Pacts.
+
+To use a plugin, first you need to let the builder know to load the plugin (using the `usingPlugin` method) and then 
+configure the interaction based on the requirements for the plugin. Each plugin may have different requirements, so you 
+will have to consult the plugin docs on what is required. The plugins will be loaded from the plugin directory. By 
+default, this is `~/.pact/plugins` or the value of the `PACT_PLUGIN_DIR` environment variable.
+
+Then you need to use the `with` method that takes a Map-based data structure and passed it on to the plugin to
+setup the interaction.
+
+For example, if we use the CSV plugin from the plugins project, our test would look like:
+
+```java
+@ExtendWith(PactConsumerTestExt.class)
+class CsvClientTest {
+  /**
+   * Setup an interaction that makes a request for a CSV report 
+   */
+  @Pact(consumer = &amp;quot;CsvClient&amp;quot;)
+  V4Pact pact(PactBuilder builder) {
+    return builder
+      // Tell the builder to load the CSV plugin
+      .usingPlugin(&amp;quot;csv&amp;quot;)
+      // Interaction we are expecting to receive
+      .expectsToReceive(&amp;quot;request for a report&amp;quot;, &amp;quot;core/interaction/http&amp;quot;)
+      // Data for the interaction. This will be sent to the plugin
+      .with(Map.of(
+        &amp;quot;request.path&amp;quot;, &amp;quot;/reports/report001.csv&amp;quot;,
+        &amp;quot;response.status&amp;quot;, &amp;quot;200&amp;quot;,
+        &amp;quot;response.contents&amp;quot;, Map.of(
+          &amp;quot;pact:content-type&amp;quot;, &amp;quot;text/csv&amp;quot;,
+          &amp;quot;csvHeaders&amp;quot;, false,
+          &amp;quot;column:1&amp;quot;, &amp;quot;matching(type,&amp;apos;Name&amp;apos;)&amp;quot;,
+          &amp;quot;column:2&amp;quot;, &amp;quot;matching(number,100)&amp;quot;,
+          &amp;quot;column:3&amp;quot;, &amp;quot;matching(datetime, &amp;apos;yyyy-MM-dd&amp;apos;,&amp;apos;2000-01-01&amp;apos;)&amp;quot;
+        )
+      ))
+      .toPact();
+  }
+
+  /**
+   * Test to get the CSV report
+   */
+  @Test
+  @PactTestFor(providerName = &amp;quot;CsvServer&amp;quot;, pactMethod = &amp;quot;pact&amp;quot;)
+  void getCsvReport(MockServer mockServer) throws IOException {
+    // Setup our CSV client class to point to the Pact mock server
+    CsvClient client = new CsvClient(mockServer.getUrl());
+    
+    // Fetch the CSV report
+    List&amp;lt;CSVRecord&amp;gt; csvData = client.fetch(&amp;quot;report001.csv&amp;quot;, false);
+    
+    // Verify it is as expected
+    assertThat(csvData.size(), is(1));
+    assertThat(csvData.get(0).get(0), is(equalTo(&amp;quot;Name&amp;quot;)));
+    assertThat(csvData.get(0).get(1), is(equalTo(&amp;quot;100&amp;quot;)));
+    assertThat(csvData.get(0).get(2), matchesRegex(&amp;quot;\\d{4}-\\d{2}-\\d{2}&amp;quot;));
+  }
+}
+```
+
+# Test Analytics
+
+We are tracking anonymous analytics to gather important usage statistics like JVM version
+and operating system. To disable tracking, set the &amp;apos;pact_do_not_track&amp;apos; system property or environment
+variable to &amp;apos;true&amp;apos;.
+</description>
+  <url>https://github.com/DiUS/pact-jvm</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>thetrav</id>
+      <name>Travis Dixon</name>
+      <email>the.trav@gmail.com</email>
+    </developer>
+    <developer>
+      <id>rholshausen</id>
+      <name>Ronald Holshausen</name>
+      <email>rholshausen@dius.com.au</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>https://github.com/pact-foundation/pact-jvm.git</connection>
+    <url>https://github.com/pact-foundation/pact-jvm</url>
+  </scm>
+  <dependencies>
+    <dependency>
+      <groupId>au.com.dius.pact</groupId>
+      <artifactId>consumer</artifactId>
+      <version>4.3.5</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-stdlib</artifactId>
+      <version>1.5.31</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.jetbrains.kotlin</groupId>
+      <artifactId>kotlin-reflect</artifactId>
+      <version>1.5.31</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>5.7.2</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.32</version>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+</project>
